@@ -1,4 +1,4 @@
-# VideoPlayer
-The video-player is written in python using opencv. It's not meant to be used for 4k, 2h long movies but rather to watch minute-long videos, or rather to analyse them.
+# Python VideoPlayer
+The video-player is written in python using OpenCV. It's not meant to be used for 4k, two hour long movies but rather to watch minute-long videos.
 
-There are multiple features for such as... TBC
+The final version will have multiple features to make analyzing videos much easier.
