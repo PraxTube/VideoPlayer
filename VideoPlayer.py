@@ -3,8 +3,10 @@ import sys
 import time
 import tkinter
 
+import VectorClasses as VC
+
 class VideoPlayer:
-    framesPerSecond = 60
+    framesPerSecond = 24
     milSecondsPerFrame = int(1000 / framesPerSecond)
 
     frameTitle = "Video Player"
@@ -21,11 +23,15 @@ class VideoPlayer:
         self.amountOfFrames = int(self.vid.get(cv2.CAP_PROP_FRAME_COUNT))
 
         self.monitorSize = self.getMonitorSize()
-        self.vidSize = (int(self.vid.get(cv2.CAP_PROP_FRAME_WIDTH)), 
+        self.vidSize = VC.IntVector2(int(self.vid.get(cv2.CAP_PROP_FRAME_WIDTH)), 
             int(self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+        self.displayedVidSize = self.vidSize
 
         self.lastFrameTimeStamp = 0
+        self.timeDif = 0
         self.currentFrame = 0
+        self.screenScale = 0
+
         self.isRunning = True
         self.isPaused = False
         self.showDebugText = False
@@ -68,9 +74,11 @@ class VideoPlayer:
         return size
 
     def getTimeDifference(self):
-        timeDif = self.milSecondsPerFrame - int(time.time() - self.lastFrameTimeStamp)
+        timeDif = self.milSecondsPerFrame - int((time.time() - self.lastFrameTimeStamp) * 1000)
 
         self.lastFrameTimeStamp = time.time()
+        self.timeDif = timeDif
+        print(timeDif)
         return max(1, timeDif)
 
     def getFrame(self, frameToGet = -1):
@@ -88,10 +96,10 @@ class VideoPlayer:
         return ret, frame
 
     def drawFrame(self, frame):
-        outFrame = cv2.resize(frame, (1280, 720))
+        outFrame = cv2.resize(frame, (self.displayedVidSize.x, self.displayedVidSize.y))
 
         if self.showDebugText:
-            outFrame = self.textManager.putTexts(outFrame)
+            self.textManager.putTexts(outFrame)
 
         cv2.imshow(self.frameTitle, outFrame)
 
@@ -105,8 +113,19 @@ class VideoPlayer:
         action(self)
 
     def centerVideo(self):
-        cv2.moveWindow(self.frameTitle, (self.monitorSize[0] // 2) - (self.vidSize[0] // 2), 
-            (self.monitorSize[1] // 2) - (self.vidSize[1] // 2))
+        cv2.moveWindow(self.frameTitle, (self.monitorSize[0] // 2) - (self.displayedVidSize[0] // 2), 
+            (self.monitorSize[1] // 2) - (self.displayedVidSize[1] // 2))
+
+    def changeScreenSize(self):
+        if self.screenScale == 0:
+            self.displayedVidSize = self.vidSize
+
+        if self.screenScale > 0:
+            self.displayedVidSize = self.vidSize + 0.25 * self.screenScale * self.vidSize
+        elif self.screenScale < 0:
+            self.displayedVidSize = self.vidSize * (0.85 * -1 / self.screenScale)
+        
+        self.centerVideo()
 
     # --- Input Functions
     def quitVideo(self):
@@ -133,6 +152,23 @@ class VideoPlayer:
 
     def toggleDebugText(self):
         self.showDebugText = not self.showDebugText
+
+        _, frame = self.getFrame(self.currentFrame)
+        self.drawFrame(frame)
+
+    def screenScaleUp(self):
+        self.screenScale = min(4, self.screenScale + 1)
+        self.changeScreenSize()
+
+        _, frame = self.getFrame(self.currentFrame)
+        self.drawFrame(frame)
+
+    def screenScaleDown(self):
+        self.screenScale = max(-4, self.screenScale - 1)
+        self.changeScreenSize()
+
+        _, frame = self.getFrame(self.currentFrame)
+        self.drawFrame(frame)
     # --- END Input Functions
 
 class InputManager:
@@ -142,11 +178,15 @@ class InputManager:
                 [100, "D", "Skip forward", VideoPlayer.skipForward],
                 [65, "LSHIFT + A", "Skip one frame backward", VideoPlayer.skipOneFrameBackward],
                 [68, "LSHIFT + D", "Skip one frame forward", VideoPlayer.skipOneFrameForward],
+                [114, "R", "Scale Screen-size up", VideoPlayer.screenScaleUp],
+                [102, "F", "Scale Screen-size down", VideoPlayer.screenScaleDown],
                 [104, "H", "Hide or show Debug Info", VideoPlayer.toggleDebugText]]
 
     def checkInputs(self, inputKey):
         if inputKey == -1:
             return None
+
+        print(inputKey)
         
         for input in self.inputs:
             if input[0] == inputKey:
@@ -158,10 +198,12 @@ class TextManager:
         self.videoPlayer = videoPlayer
         self.texts = []
 
-        self.org = (50, 50)
+        self.org = (25, 40)
         self.font = cv2.FONT_HERSHEY_SIMPLEX
-        self.scale = 1
+        self.scale = 0.75
         self.thickness = 2
+
+        self.textSpacing = VC.IntVector2(0, 60)
 
         self.realFPS = videoPlayer.vid.get(cv2.CAP_PROP_FPS)
         self.maxTime = self.convertTime(self.videoPlayer.amountOfFrames // self.realFPS)
@@ -170,28 +212,26 @@ class TextManager:
 
     def updateTexts(self):
         curFrame = self.videoPlayer.currentFrame
-        maxFrame = self.videoPlayer.amountOfFrames
-        fps = self.videoPlayer.framesPerSecond
 
-        self.texts = [  "FPS: {}".format(fps),
-                        "{}/{}  {}%".format(self.convertTime(curFrame // self.realFPS), self.maxTime, curFrame * 100 // maxFrame)]
-
-    def putText(self, frame, text, org, color, thickness):
-        frame = cv2.putText(frame, text, 
-            org, self.font, self.scale, color, thickness, cv2.LINE_AA)
-        return frame
+        self.texts = [  "{}/{}".format(self.convertTime(curFrame // self.realFPS), self.maxTime),
+                        "R: {}".format(self.videoPlayer.displayedVidSize),
+                        "t: {}".format(self.videoPlayer.timeDif)]
 
     def putTexts(self, frame):
         self.updateTexts()
 
-        for i in range(len(self.texts)):
-            org = (self.org[0], self.org[1] + 60 * self.scale * i)
-            frame = self.putText(frame, self.texts[i], org, (0, 0, 0), self.thickness * 3)
-            frame = self.putText(frame, self.texts[i], org, (255, 255, 255), self.thickness)
-        return frame
+        outText = ""
+        for text in self.texts:
+            outText += text + "; "
+        outText = outText.removesuffix("; ")
+
+        outText *= self.videoPlayer.screenScale
+
+        cv2.putText(frame, outText, self.org, self.font, self.scale, (0, 0, 0), self.thickness * 3, cv2.LINE_AA)
+        cv2.putText(frame, outText, self.org, self.font, self.scale, (255, 255, 255), self.thickness, cv2.LINE_AA)
 
     def convertTime(self, seconds):
-        return time.strftime("%H:%M:%S", time.gmtime(seconds))
+        return time.strftime("%M:%S", time.gmtime(seconds))
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
