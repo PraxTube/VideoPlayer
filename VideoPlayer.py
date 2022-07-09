@@ -1,3 +1,4 @@
+import os
 import cv2
 import sys
 import time
@@ -188,24 +189,24 @@ class VideoPlayer:
     # --- END Input Functions
 
 class InputManager:
-    inputs = [  [113, "Q", "Quit video player", VideoPlayer.quitVideo],
-                [32, "SPACE", "Pause video", VideoPlayer.togglePauseVideo],
-                [97, "A", "Skip backward", VideoPlayer.skipBackward],
-                [100, "D", "Skip forward", VideoPlayer.skipForward],
-                [65, "LSHIFT + A", "Skip one frame backward", VideoPlayer.skipOneFrameBackward],
-                [68, "LSHIFT + D", "Skip one frame forward", VideoPlayer.skipOneFrameForward],
-                [114, "R", "Scale Screen-size up", VideoPlayer.screenScaleUp],
-                [116, "T", "Scale Screen-size down", VideoPlayer.screenScaleDown],
-                [122, "Z", "Toggle Zoom Mode", VideoPlayer.toggleZoom],
-                [102, "F", "Enter and Exit Fullscreen", VideoPlayer.toggleFullscreen],
-                [104, "H", "Hide or show Debug Info", VideoPlayer.toggleDebugText]]
+    inputs = [  
+        [113, "Q", "Quit video player", VideoPlayer.quitVideo],
+        [97, "A", "Skip backward", VideoPlayer.skipBackward],
+        [100, "D", "Skip forward", VideoPlayer.skipForward],
+        [114, "R", "Scale Screen-size up", VideoPlayer.screenScaleUp],
+        [116, "T", "Scale Screen-size down", VideoPlayer.screenScaleDown],
+        [122, "Z", "Toggle Zoom Mode", VideoPlayer.toggleZoom],
+        [102, "F", "Enter and Exit Fullscreen", VideoPlayer.toggleFullscreen],
+        [104, "H", "Hide or show Debug Info", VideoPlayer.toggleDebugText],
+        [32, "SPACE", "Pause video", VideoPlayer.togglePauseVideo],
+        [65, "LSHIFT + A", "Skip one frame backward", VideoPlayer.skipOneFrameBackward],
+        [68, "LSHIFT + D", "Skip one frame forward", VideoPlayer.skipOneFrameForward]
+    ]
 
     def checkInputs(self, inputKey):
         if inputKey == -1:
             return None
 
-        print(inputKey)
-        
         for input in self.inputs:
             if input[0] == inputKey:
                 return input[3]
@@ -233,8 +234,10 @@ class TextManager:
         curFrame = vP.currentFrame
         res = vP.monitorSize if vP.isFullscreen else vP.displayedVidSize
 
-        self.texts = [  "{}/{}".format(self.convertTime(curFrame // self.realFPS), self.maxTime),
-                        "R: {}".format(res)]
+        self.texts = [  
+            "{}/{}".format(self.convertTime(curFrame // self.realFPS), self.maxTime),
+            "R: {}".format(res)
+        ]
 
     def putTexts(self, frame):
         self.updateTexts()
@@ -250,12 +253,54 @@ class TextManager:
     def convertTime(self, seconds):
         return time.strftime("%M:%S", time.gmtime(seconds))
 
+class CommandManager:
+    def __init__(self):
+        self.enterCommandSymbol = "-c"
+        self.commands = [
+            ["help, -h", "Display available commands", CommandManager.helpCommand],
+            ["input, -i", "Display input keys", CommandManager.inputCommand]
+        ]
+
+    def checkCommands(self, commandKey):
+        validCommand = False
+
+        for command in self.commands:
+            if commandKey in command[0].split(", "):
+                if not callable(command[2]):
+                    raise ValueError("Command has no callable function", command)
+                validCommand = True
+                command[2](self)
+        
+        if not validCommand:
+            raise ValueError("\'{}\' is not a viable command.\nUse \'{} help\' to view available comamnds.".format(commandKey, self.enterCommandSymbol))
+    
+    # --- Commands
+    def helpCommand(self):
+        print("\nFollowing commands can be used for this script:\n")
+
+        for command in self.commands:
+            print("{} - {}".format(command[0], command[1]))
+
+    def inputCommand(self):
+        print("\nAvailable input keys:\n")
+
+        IM = InputManager()
+        for input in IM.inputs:
+            print("{} - {}".format(input[1], input[2]))
+    # --- END Commands
+
 if __name__ == "__main__":
     start = time.time()
+    CM = CommandManager()
 
     if len(sys.argv) < 2:
-        videoFile = "./Videos/minSurfaces.mp4"
+        raise ValueError("No video location or command was given.\nUse \'{}\' if you want to enter a command.".format(CM.enterCommandSymbol))
+    
+    if sys.argv[1] == CM.enterCommandSymbol:
+        if len(sys.argv) != 3:
+            raise ValueError("Need exactly 2 additional arguments for a command.")
+        CM.checkCommands(sys.argv[2])
+    elif os.path.isfile(sys.argv[1]):
+        vPlayer = VideoPlayer(sys.argv[1])
     else:
-        videoFile = sys.argv[1]
-
-    vPlayer = VideoPlayer(videoFile)
+        raise FileNotFoundError("The specifiec video does not exist or is not a file", sys.argv[1])
