@@ -6,7 +6,7 @@ import tkinter
 import VectorClasses as VC
 
 class VideoPlayer:
-    framesPerSecond = 24
+    framesPerSecond = 60
     milSecondsPerFrame = int(1000 / framesPerSecond)
 
     frameTitle = "Video Player"
@@ -34,6 +34,7 @@ class VideoPlayer:
 
         self.isRunning = True
         self.isPaused = False
+        self.isFullscreen = False
         self.showDebugText = False
 
         self.inputManager = InputManager()
@@ -60,7 +61,7 @@ class VideoPlayer:
                 return
             self.drawFrame(frame)
 
-            k = cv2.waitKey(self.getTimeDifference())
+            k = cv2.waitKey(self.milSecondsPerFrame)
             self.inputAction(self.inputManager.checkInputs(k))
 
     def getMonitorSize(self):
@@ -68,18 +69,10 @@ class VideoPlayer:
         # https://stackoverflow.com/questions/3129322/how-do-i-get-monitor-resolution-in-python
         root = tkinter.Tk()
         root.withdraw()
-        size = (root.winfo_screenwidth(), root.winfo_screenheight())
+        size = VC.IntVector2(root.winfo_screenwidth(), root.winfo_screenheight())
         root.destroy()
 
         return size
-
-    def getTimeDifference(self):
-        timeDif = self.milSecondsPerFrame - int((time.time() - self.lastFrameTimeStamp) * 1000)
-
-        self.lastFrameTimeStamp = time.time()
-        self.timeDif = timeDif
-        print(timeDif)
-        return max(1, timeDif)
 
     def getFrame(self, frameToGet = -1):
         if frameToGet != -1:
@@ -117,6 +110,8 @@ class VideoPlayer:
             (self.monitorSize[1] // 2) - (self.displayedVidSize[1] // 2))
 
     def changeScreenSize(self):
+        self.isFullscreen = False
+
         if self.screenScale == 0:
             self.displayedVidSize = self.vidSize
 
@@ -169,6 +164,18 @@ class VideoPlayer:
 
         _, frame = self.getFrame(self.currentFrame)
         self.drawFrame(frame)
+    
+    def toggleFullscreen(self):
+        print(self.isFullscreen)
+        if self.isFullscreen:
+            self.changeScreenSize()
+        else:
+            self.displayedVidSize = self.monitorSize
+            self.centerVideo()
+            self.isFullscreen = True
+
+        _, frame = self.getFrame(self.currentFrame)
+        self.drawFrame(frame)
     # --- END Input Functions
 
 class InputManager:
@@ -179,7 +186,8 @@ class InputManager:
                 [65, "LSHIFT + A", "Skip one frame backward", VideoPlayer.skipOneFrameBackward],
                 [68, "LSHIFT + D", "Skip one frame forward", VideoPlayer.skipOneFrameForward],
                 [114, "R", "Scale Screen-size up", VideoPlayer.screenScaleUp],
-                [102, "F", "Scale Screen-size down", VideoPlayer.screenScaleDown],
+                [116, "T", "Scale Screen-size down", VideoPlayer.screenScaleDown],
+                [102, "F", "Enter and Exit Fullscreen", VideoPlayer.toggleFullscreen],
                 [104, "H", "Hide or show Debug Info", VideoPlayer.toggleDebugText]]
 
     def checkInputs(self, inputKey):
@@ -211,11 +219,12 @@ class TextManager:
         self.updateTexts()
 
     def updateTexts(self):
-        curFrame = self.videoPlayer.currentFrame
+        vP = self.videoPlayer
+        curFrame = vP.currentFrame
+        res = vP.monitorSize if vP.isFullscreen else vP.displayedVidSize
 
         self.texts = [  "{}/{}".format(self.convertTime(curFrame // self.realFPS), self.maxTime),
-                        "R: {}".format(self.videoPlayer.displayedVidSize),
-                        "t: {}".format(self.videoPlayer.timeDif)]
+                        "R: {}".format(res)]
 
     def putTexts(self, frame):
         self.updateTexts()
@@ -224,8 +233,6 @@ class TextManager:
         for text in self.texts:
             outText += text + "; "
         outText = outText.removesuffix("; ")
-
-        outText *= self.videoPlayer.screenScale
 
         cv2.putText(frame, outText, self.org, self.font, self.scale, (0, 0, 0), self.thickness * 3, cv2.LINE_AA)
         cv2.putText(frame, outText, self.org, self.font, self.scale, (255, 255, 255), self.thickness, cv2.LINE_AA)
