@@ -5,6 +5,8 @@ import tkinter
 
 import VectorClasses as VC
 
+start = 0
+
 class VideoPlayer:
     framesPerSecond = 60
     milSecondsPerFrame = int(1000 / framesPerSecond)
@@ -34,6 +36,7 @@ class VideoPlayer:
 
         self.isRunning = True
         self.isPaused = False
+        self.isZoomed = False
         self.isFullscreen = False
         self.showDebugText = False
 
@@ -49,6 +52,8 @@ class VideoPlayer:
         if self.vid.isOpened():
             self.vid.release()
         cv2.destroyAllWindows()
+        end = time.time()
+        print(time.strftime("Runtime: %M:%S", time.gmtime(end - start)))
 
     def update(self):
         while self.isRunning:
@@ -65,8 +70,6 @@ class VideoPlayer:
             self.inputAction(self.inputManager.checkInputs(k))
 
     def getMonitorSize(self):
-        # Note: there might be problems when having a multi screen setup, there are fixes however
-        # https://stackoverflow.com/questions/3129322/how-do-i-get-monitor-resolution-in-python
         root = tkinter.Tk()
         root.withdraw()
         size = VC.IntVector2(root.winfo_screenwidth(), root.winfo_screenheight())
@@ -90,6 +93,10 @@ class VideoPlayer:
 
     def drawFrame(self, frame):
         outFrame = cv2.resize(frame, (self.displayedVidSize.x, self.displayedVidSize.y))
+
+        if self.isZoomed:
+            outFrame = outFrame[300:500, 300:500]
+            self.centerVideo()
 
         if self.showDebugText:
             self.textManager.putTexts(outFrame)
@@ -166,16 +173,18 @@ class VideoPlayer:
         self.drawFrame(frame)
     
     def toggleFullscreen(self):
-        print(self.isFullscreen)
         if self.isFullscreen:
             self.changeScreenSize()
         else:
-            self.displayedVidSize = self.monitorSize
+            self.displayedVidSize = self.monitorSize + VC.IntVector2(self.monitorSize[0] // 64, 0)
             self.centerVideo()
             self.isFullscreen = True
 
         _, frame = self.getFrame(self.currentFrame)
         self.drawFrame(frame)
+
+    def toggleZoom(self):
+        self.isZoomed = not self.isZoomed
     # --- END Input Functions
 
 class InputManager:
@@ -187,6 +196,7 @@ class InputManager:
                 [68, "LSHIFT + D", "Skip one frame forward", VideoPlayer.skipOneFrameForward],
                 [114, "R", "Scale Screen-size up", VideoPlayer.screenScaleUp],
                 [116, "T", "Scale Screen-size down", VideoPlayer.screenScaleDown],
+                [122, "Z", "Toggle Zoom Mode", VideoPlayer.toggleZoom],
                 [102, "F", "Enter and Exit Fullscreen", VideoPlayer.toggleFullscreen],
                 [104, "H", "Hide or show Debug Info", VideoPlayer.toggleDebugText]]
 
@@ -241,8 +251,10 @@ class TextManager:
         return time.strftime("%M:%S", time.gmtime(seconds))
 
 if __name__ == "__main__":
+    start = time.time()
+
     if len(sys.argv) < 2:
-        videoFile = "./Videos/kickboxing.mp4"
+        videoFile = "./Videos/minSurfaces.mp4"
     else:
         videoFile = sys.argv[1]
 
