@@ -6,12 +6,7 @@ import tkinter
 
 import VectorClasses as VC
 
-start = 0
-
 class VideoPlayer:
-    framesPerSecond = 60
-    milSecondsPerFrame = int(1000 / framesPerSecond)
-
     frameTitle = "Video Player"
     skipTime = 3 # in seconds
 
@@ -20,24 +15,23 @@ class VideoPlayer:
         if not self.vid.isOpened():
             raise ValueError("Unable to open video source", video_source)
         
-        if self.milSecondsPerFrame < 1:
-            raise ValueError("FPS cannot be higher then 1000", self.milSecondsPerFrame)
-
+        self.framesPerSecond = int(self.vid.get(cv2.CAP_PROP_FPS))
+        self.milSecondsPerFrame = int(428 / self.framesPerSecond)
         self.amountOfFrames = int(self.vid.get(cv2.CAP_PROP_FRAME_COUNT))
+
+        if self.milSecondsPerFrame < 1:
+            raise ValueError("FPS need to be lower", self.framesPerSecond)
 
         self.monitorSize = self.getMonitorSize()
         self.vidSize = VC.IntVector2(int(self.vid.get(cv2.CAP_PROP_FRAME_WIDTH)), 
             int(self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT)))
         self.displayedVidSize = self.vidSize
 
-        self.lastFrameTimeStamp = 0
-        self.timeDif = 0
         self.currentFrame = 0
         self.screenScale = 0
 
         self.isRunning = True
         self.isPaused = False
-        self.isZoomed = False
         self.isFullscreen = False
         self.showDebugText = False
 
@@ -53,8 +47,6 @@ class VideoPlayer:
         if self.vid.isOpened():
             self.vid.release()
         cv2.destroyAllWindows()
-        end = time.time()
-        print(time.strftime("Runtime: %M:%S", time.gmtime(end - start)))
 
     def update(self):
         while self.isRunning:
@@ -95,10 +87,6 @@ class VideoPlayer:
     def drawFrame(self, frame):
         outFrame = cv2.resize(frame, (self.displayedVidSize.x, self.displayedVidSize.y))
 
-        if self.isZoomed:
-            outFrame = outFrame[300:500, 300:500]
-            self.centerVideo()
-
         if self.showDebugText:
             self.textManager.putTexts(outFrame)
 
@@ -137,12 +125,12 @@ class VideoPlayer:
     def togglePauseVideo(self):
         self.isPaused = not self.isPaused
 
-    def skipForward(self): # HARD CODED NUMBER
-        _, frame = self.getFrame(self.currentFrame + 24 * self.skipTime)
+    def skipForward(self):
+        _, frame = self.getFrame(self.currentFrame + self.framesPerSecond * self.skipTime)
         self.drawFrame(frame)
 
-    def skipBackward(self): # HARD CODED NUMBER
-        _, frame = self.getFrame(self.currentFrame - 24 * self.skipTime)
+    def skipBackward(self):
+        _, frame = self.getFrame(self.currentFrame - self.framesPerSecond * self.skipTime)
         self.drawFrame(frame)
 
     def skipOneFrameForward(self):
@@ -183,19 +171,15 @@ class VideoPlayer:
 
         _, frame = self.getFrame(self.currentFrame)
         self.drawFrame(frame)
-
-    def toggleZoom(self):
-        self.isZoomed = not self.isZoomed
     # --- END Input Functions
 
 class InputManager:
-    inputs = [  
+    inputs = [
         [113, "Q", "Quit video player", VideoPlayer.quitVideo],
         [97, "A", "Skip backward", VideoPlayer.skipBackward],
         [100, "D", "Skip forward", VideoPlayer.skipForward],
         [114, "R", "Scale Screen-size up", VideoPlayer.screenScaleUp],
         [116, "T", "Scale Screen-size down", VideoPlayer.screenScaleDown],
-        [122, "Z", "Toggle Zoom Mode", VideoPlayer.toggleZoom],
         [102, "F", "Enter and Exit Fullscreen", VideoPlayer.toggleFullscreen],
         [104, "H", "Hide or show Debug Info", VideoPlayer.toggleDebugText],
         [32, "SPACE", "Pause video", VideoPlayer.togglePauseVideo],
@@ -276,13 +260,13 @@ class CommandManager:
     
     # --- Commands
     def helpCommand(self):
-        print("\nFollowing commands can be used for this script:\n")
+        print("---\nFollowing commands can be used for this script:\n")
 
         for command in self.commands:
             print("{} - {}".format(command[0], command[1]))
 
     def inputCommand(self):
-        print("\nAvailable input keys:\n")
+        print("---\nAvailable input keys (shortcuts for the video):\n")
 
         IM = InputManager()
         for input in IM.inputs:
@@ -290,7 +274,6 @@ class CommandManager:
     # --- END Commands
 
 if __name__ == "__main__":
-    start = time.time()
     CM = CommandManager()
 
     if len(sys.argv) < 2:
