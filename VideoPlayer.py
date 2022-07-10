@@ -1,9 +1,8 @@
 """This script plays a video using opencv. It provides features for
-viewing the video, such going back and forth by a single frame, 
+viewing the video, such as going back and forth certain frames, 
 rescaling the window and displaying debug info.
 
-It references another python script VectorClasses in order to
-make calculations with a Vector2.
+The user can use keyboard inputs to access these features at runtime.
 """
 
 import os
@@ -24,16 +23,16 @@ class VideoPlayer:
     TextManager. It has an endless while-loop which only stops
     if the video ends or the user quits (calling quit_video).
     """
-    frame_title = "Video Player"
-    # Time skip in seconds
-    skipping_time = 3
-
     def __init__(self, video_source):
         """Initialise video properties and start update"""
         self.vid = cv2.VideoCapture(video_source)
         if not self.vid.isOpened():
             raise ValueError("Unable to open video source", video_source)
         
+        # General video properties.
+        self.frame_title = "Video Player"
+        self.skipping_time = 3 # In seconds.
+        self.current_frame = 0
         self.frames_per_second = int(self.vid.get(cv2.CAP_PROP_FPS))
         # This number is PC specific and is only a temporary solution
         self.milseconds_per_frame = int(428 / self.frames_per_second)
@@ -42,24 +41,25 @@ class VideoPlayer:
         if self.milseconds_per_frame < 1:
             raise ValueError("FPS need to be lower", self.frames_per_second)
 
+        # Window size related properties.
         self.monitor_size = self.get_monitor_size()
         self.vid_size = VC.IntVector2(
             int(self.vid.get(cv2.CAP_PROP_FRAME_WIDTH)), 
             int(self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
         )
         self.displayed_vid_size = self.vid_size
-
-        self.current_frame = 0
         self.screen_scale = 0
 
+        # Boolean properties.
         self.is_running = True
         self.is_paused = False
         self.is_fullscreen = False
         self.show_debug_text = False
 
+        # Class instances.
         self.input_manager = InputManager()
         self.text_manager = TextManager(self)
-
+        # Kick off the update loop.
         self.update()
 
     def __del__(self):
@@ -72,12 +72,14 @@ class VideoPlayer:
         cv2.destroyAllWindows()
 
     def update(self):
-        """Update video as long as video has not ended/user not quit.
+        """Update video as long as it has not ended or user has quit.
         
-        If the video runs like normal, then update to the next frame,
-        else check for any user input.
+        If the video runs like normal, then update to the next frame
+        and check for any user input. If video is paused, just check
+        for any user input.
         """
         while self.is_running:
+            # Check user input as long as the video is paused.
             while self.is_paused:
                 self.input_action(
                     self.input_manager.checkInputs(cv2.waitKey(0)))
@@ -88,6 +90,7 @@ class VideoPlayer:
                 return
             self.draw_frame(frame)
 
+            # Wait appropriate time and check for any user input.
             k = cv2.waitKey(self.milseconds_per_frame)
             self.input_action(self.input_manager.checkInputs(k))
 
@@ -118,6 +121,8 @@ class VideoPlayer:
         ret, frame = self.vid.read()
         self.current_frame += 1
 
+        # If video ended (or something unexpected happend) stop
+        # running the video in the update loop.
         if not ret:
             self.is_running = False
 
@@ -139,7 +144,7 @@ class VideoPlayer:
         if action == None:
             return
 
-        # In case developer messed up the action, throw an error.
+        # In case developer messed up the action, raise error.
         if not callable(action):
             raise ValueError("Given Action is not a callable", action)
         
@@ -153,7 +158,6 @@ class VideoPlayer:
             (self.monitor_size[0] // 2)
             - (self.displayed_vid_size[0] // 2)
         )
-
         new_height = (
             (self.monitor_size[1] // 2)
             - (self.displayed_vid_size[1] // 2)
@@ -255,9 +259,9 @@ class InputManager:
     """Store input relations and references to VideoPlayer functions.
     
     Every input is stored as an Array, with the first element
-    acting like a key in a dictionary. A dictionary is not used here,
-    because for every key the user presses, no matter if it is used
-    or not, results in a check if it is inside inputs.
+    acting like a key in a dictionary. A dictionary is not used here
+    because every key the user presses gets checked, regardless if
+    they have a function associated with them or not.
     The second and third element have debug info for the user, the
     last element contains a reference to the function that gets
     called once the key is pressed.
@@ -286,10 +290,10 @@ class InputManager:
     ]
 
     def checkInputs(self, input_key):
-        """Check if input_key is a used key, if so, 
+        """Check if input_key is a viable key, if so,
         return the function corresponding to the key."""
+        # In case no key was pressed, return None
         if input_key == -1:
-            # In case no key was pressed, return None
             return None
 
         for input in self.inputs:
@@ -301,8 +305,8 @@ class InputManager:
 class TextManager:
     """Manage text that gets put on the video.
     
-    The information gets taking from the video_player and updates
-    every time another frame is drawn (text should be shown).
+    The information gets taking from the VideoPlayer and updates
+    every time a frame is drawn.
     Putting text on the frame with cv2.putText is very inefficient,
     use as few characters as possible.
     """
@@ -311,7 +315,7 @@ class TextManager:
         self.video_player = video_player
         self.texts = []
 
-        # Origin, position of the text.
+        # Origin, position of the text starting in top left corner.
         self.org = (25, 40)
         self.font = cv2.FONT_HERSHEY_SIMPLEX
         self.scale = 0.75
@@ -322,7 +326,7 @@ class TextManager:
             self.video_player.amount_of_frames // self.realFPS)
 
     def updateTexts(self):
-        """Update texts input by reading from video_player."""
+        """Update texts by reading properties from video_player."""
         curFrame = self.video_player.current_frame
         res = self.video_player.displayed_vid_size
 
@@ -333,16 +337,16 @@ class TextManager:
         ]
 
     def putTexts(self, frame):
-        """Put everything in texts onto the frame."""
+        """Put everything from texts onto the frame."""
         self.updateTexts()
 
-        # Loop through texts and put it into one single string.
+        # Loop through texts and put it into a single string.
         outText = ""
         for text in self.texts:
             outText += text + "; "
         outText = outText.removesuffix("; ")
 
-        # Put background for better readability, but costs performance.
+        # Put background for better readability.
         cv2.putText(
             frame, outText, self.org, self.font, self.scale, 
             (0, 0, 0), self.thickness * 3, cv2.LINE_AA
@@ -359,7 +363,7 @@ class TextManager:
 
 
 class CommandManager:
-    """Handle command promps from the user if any are given.
+    """Handle command prompts from the user if any are given.
     
     Provides the user with the ability to run commands.
     """
@@ -379,14 +383,14 @@ class CommandManager:
         validCommand = False
 
         for command in self.commands:
-            # Split required because command is 
+            # Split required because command is has multiple keys.
             if command_key in command[0].split(", "):
                 if not callable(command[2]):
                     raise ValueError("Command not callable", command)
                 validCommand = True
                 command[2](self)
         
-        # If command_key was not found in any command, throw error. 
+        # If command_key was not found in any command, raise error. 
         if not validCommand:
             raise ValueError(
                 "\'{}\' is not a viable command.\n"
@@ -404,11 +408,11 @@ class CommandManager:
             print("{} - {}".format(command[0], command[1]))
 
     def input_command(self):
-        """Print all user available input keys."""
+        """Print all available input keys."""
         print("---\nAvailable input keys (shortcuts for the video):\n")
 
         # Neccassary reference to InputManager. If text file is used
-        # instead, then this becomes uneccassary and less entangled.
+        # instead, then the reference becomes uneccassary.
         IM = InputManager()
         for input in IM.inputs:
             print("{} - {}".format(input[1], input[2]))
@@ -417,7 +421,7 @@ class CommandManager:
 if __name__ == "__main__":
     command_manager = CommandManager()
 
-    # Need either a command or a video file but nothing was given.
+    # No command or video file is given.
     if len(sys.argv) < 2:
         raise ValueError(
             "No video location or command was given.\n"
@@ -425,12 +429,12 @@ if __name__ == "__main__":
             .format(command_manager.command_symbol)
         )
     
-    # In case a command is given.
+    # A command is given.
     if sys.argv[1] == command_manager.command_symbol:
         if len(sys.argv) != 3:
             raise ValueError("Need exactly 2 arguments for command.")
         command_manager.check_commands(sys.argv[2])
-    # In case a file is given.
+    # A file is given.
     elif os.path.isfile(sys.argv[1]):
         vPlayer = VideoPlayer(sys.argv[1])
     else:
