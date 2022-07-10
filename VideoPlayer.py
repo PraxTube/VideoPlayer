@@ -1,98 +1,112 @@
+""" This script plays a video using opencv. It provides features for
+viewing the video, such as skipping by a single frame, rescaling view
+and displaying debug info."""
+
 import os
-import cv2
 import sys
 import time
 import tkinter
 
+import cv2
+
 import VectorClasses as VC
 
+
 class VideoPlayer:
-    frameTitle = "Video Player"
-    skipTime = 3 # in seconds
+    frame_title = "Video Player"
+    skipping_time = 3 # in seconds
 
     def __init__(self, video_source):
         self.vid = cv2.VideoCapture(video_source)
         if not self.vid.isOpened():
             raise ValueError("Unable to open video source", video_source)
         
-        self.framesPerSecond = int(self.vid.get(cv2.CAP_PROP_FPS))
-        self.milSecondsPerFrame = int(428 / self.framesPerSecond)
-        self.amountOfFrames = int(self.vid.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.frames_per_second = int(self.vid.get(cv2.CAP_PROP_FPS))
+        self.milseconds_per_frame = int(428 / self.frames_per_second)
+        self.amount_of_frames = int(self.vid.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        if self.milSecondsPerFrame < 1:
-            raise ValueError("FPS need to be lower", self.framesPerSecond)
+        if self.milseconds_per_frame < 1:
+            raise ValueError("FPS need to be lower", self.frames_per_second)
 
-        self.monitorSize = self.getMonitorSize()
-        self.vidSize = VC.IntVector2(int(self.vid.get(cv2.CAP_PROP_FRAME_WIDTH)), 
-            int(self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT)))
-        self.displayedVidSize = self.vidSize
+        self.monitor_size = self.get_monitor_size()
+        self.vid_size = VC.IntVector2(
+            int(self.vid.get(cv2.CAP_PROP_FRAME_WIDTH)), 
+            int(self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        )
+        self.displayed_vid_size = self.vid_size
 
-        self.currentFrame = 0
-        self.screenScale = 0
+        self.current_frame = 0
+        self.screen_scale = 0
 
-        self.isRunning = True
-        self.isPaused = False
-        self.isFullscreen = False
+        self.is_running = True
+        self.is_paused = False
+        self.is_fullscreen = False
         self.showDebugText = False
 
-        self.inputManager = InputManager()
-        self.textManager = TextManager(self)
+        self.input_manager = InputManager()
+        self.text_manager = TextManager(self)
 
         self.update()
 
     def __del__(self):
-        self.isPaused = False
-        self.isRunning = False
+        self.is_paused = False
+        self.is_running = False
 
         if self.vid.isOpened():
             self.vid.release()
         cv2.destroyAllWindows()
 
     def update(self):
-        while self.isRunning:
-            while self.isPaused:
-                self.inputAction(self.inputManager.checkInputs(cv2.waitKey(0)))
+        while self.is_running:
+            while self.is_paused:
+                self.input_action(
+                    self.input_manager.checkInputs(cv2.waitKey(0))
+                )
 
-            ret, frame = self.getFrame()
+            ret, frame = self.get_frame()
 
             if not ret:
                 return
-            self.drawFrame(frame)
+            self.draw_frame(frame)
 
-            k = cv2.waitKey(self.milSecondsPerFrame)
-            self.inputAction(self.inputManager.checkInputs(k))
+            k = cv2.waitKey(self.milseconds_per_frame)
+            self.input_action(self.input_manager.checkInputs(k))
 
-    def getMonitorSize(self):
+    def get_monitor_size(self):
         root = tkinter.Tk()
         root.withdraw()
-        size = VC.IntVector2(root.winfo_screenwidth(), root.winfo_screenheight())
-        root.destroy()
 
+        width, height = root.winfo_screenwidth(), root.winfo_screenheight()
+        size = VC.IntVector2(width, height)
+
+        root.destroy()
         return size
 
-    def getFrame(self, frameToGet = -1):
+    def get_frame(self, frameToGet = -1):
         if frameToGet != -1:
-            frameToGet = min(max(0, frameToGet), self.amountOfFrames) # frameToGet in [0, amountOfFrames]
+            frameToGet = min(max(0, frameToGet), self.amount_of_frames) # frameToGet in [0, amount_of_frames
             self.vid.set(1, frameToGet - 1)
-            self.currentFrame = frameToGet - 1
+            self.current_frame = frameToGet - 1
 
         ret, frame = self.vid.read()
-        self.currentFrame += 1
+        self.current_frame += 1
 
         if not ret:
-            self.isRunning = False
+            self.is_running = False
 
         return ret, frame
 
-    def drawFrame(self, frame):
-        outFrame = cv2.resize(frame, (self.displayedVidSize.x, self.displayedVidSize.y))
+    def draw_frame(self, frame):
+        outFrame = cv2.resize(
+            frame, (self.displayed_vid_size.x, self.displayed_vid_size.y)
+        )
 
         if self.showDebugText:
-            self.textManager.putTexts(outFrame)
+            self.text_manager.putTexts(outFrame)
 
-        cv2.imshow(self.frameTitle, outFrame)
+        cv2.imshow(self.frame_title, outFrame)
 
-    def inputAction(self, action):
+    def input_action(self, action):
         if action == None:
             return
 
@@ -101,104 +115,122 @@ class VideoPlayer:
         
         action(self)
 
-    def centerVideo(self):
-        cv2.moveWindow(self.frameTitle, (self.monitorSize[0] // 2) - (self.displayedVidSize[0] // 2), 
-            (self.monitorSize[1] // 2) - (self.displayedVidSize[1] // 2))
+    def center_video(self):
+        new_width = (
+            (self.monitor_size[0] // 2)
+            - (self.displayed_vid_size[0] // 2)
+        )
 
-    def changeScreenSize(self):
-        self.isFullscreen = False
+        new_height = (
+            (self.monitor_size[1] // 2)
+            - (self.displayed_vid_size[1] // 2)
+        )
 
-        if self.screenScale == 0:
-            self.displayedVidSize = self.vidSize
+        cv2.moveWindow(self.frame_title, new_width, new_height)
 
-        if self.screenScale > 0:
-            self.displayedVidSize = self.vidSize + 0.25 * self.screenScale * self.vidSize
-        elif self.screenScale < 0:
-            self.displayedVidSize = self.vidSize * (0.85 * -1 / self.screenScale)
+    def change_screen_size(self):
+        self.is_fullscreen = False
+
+        if self.screen_scale == 0:
+            new_size = self.vid_size
+        elif self.screen_scale > 0:
+            new_size = self.vid_size + 0.25*self.screen_scale * self.vid_size
+        elif self.screen_scale < 0:
+            new_size = self.vid_size * (0.85 * -1/self.screen_scale)
         
-        self.centerVideo()
+        self.displayed_vid_size = new_size
+        self.center_video()
 
     # --- Input Functions
-    def quitVideo(self):
+    def quit_video(self):
         self.__del__()
 
-    def togglePauseVideo(self):
-        self.isPaused = not self.isPaused
+    def toggle_pause(self):
+        self.is_paused = not self.is_paused
 
-    def skipForward(self):
-        _, frame = self.getFrame(self.currentFrame + self.framesPerSecond * self.skipTime)
-        self.drawFrame(frame)
+    def skip_forward(self):
+        _, frame = self.get_frame(
+            self.current_frame + self.frames_per_second * self.skipping_time
+        )
+        self.draw_frame(frame)
 
-    def skipBackward(self):
-        _, frame = self.getFrame(self.currentFrame - self.framesPerSecond * self.skipTime)
-        self.drawFrame(frame)
+    def skip_backward(self):
+        _, frame = self.get_frame(
+            self.current_frame - self.frames_per_second * self.skipping_time
+        )
+        self.draw_frame(frame)
 
-    def skipOneFrameForward(self):
-        _, frame = self.getFrame(self.currentFrame + 1)
-        self.drawFrame(frame)
+    def skip_one_frame_forward(self):
+        _, frame = self.get_frame(self.current_frame + 1)
+        self.draw_frame(frame)
 
-    def skipOneFrameBackward(self):
-        _, frame = self.getFrame(self.currentFrame - 1)
-        self.drawFrame(frame)
+    def skip_one_frame_backward(self):
+        _, frame = self.get_frame(self.current_frame - 1)
+        self.draw_frame(frame)
 
-    def toggleDebugText(self):
+    def toggle_debug(self):
         self.showDebugText = not self.showDebugText
 
-        _, frame = self.getFrame(self.currentFrame)
-        self.drawFrame(frame)
+        _, frame = self.get_frame(self.current_frame)
+        self.draw_frame(frame)
 
-    def screenScaleUp(self):
-        self.screenScale = min(4, self.screenScale + 1)
-        self.changeScreenSize()
+    def screen_scale_up(self):
+        self.screen_scale = min(4, self.screen_scale + 1)
+        self.change_screen_size()
 
-        _, frame = self.getFrame(self.currentFrame)
-        self.drawFrame(frame)
+        _, frame = self.get_frame(self.current_frame)
+        self.draw_frame(frame)
 
-    def screenScaleDown(self):
-        self.screenScale = max(-4, self.screenScale - 1)
-        self.changeScreenSize()
+    def screen_scale_down(self):
+        self.screen_scale = max(-4, self.screen_scale - 1)
+        self.change_screen_size()
 
-        _, frame = self.getFrame(self.currentFrame)
-        self.drawFrame(frame)
+        _, frame = self.get_frame(self.current_frame)
+        self.draw_frame(frame)
     
-    def toggleFullscreen(self):
-        if self.isFullscreen:
-            self.changeScreenSize()
+    def toggle_fullscreen(self):
+        if self.is_fullscreen:
+            self.change_screen_size()
         else:
-            self.displayedVidSize = self.monitorSize + VC.IntVector2(self.monitorSize[0] // 64, 0)
-            self.centerVideo()
-            self.isFullscreen = True
+            self.is_fullscreen = True
+            self.displayed_vid_size = (
+                self.monitor_size
+                + VC.IntVector2(self.monitor_size[0] // 64, 0)
+            )
+            self.center_video()
 
-        _, frame = self.getFrame(self.currentFrame)
-        self.drawFrame(frame)
+        _, frame = self.get_frame(self.current_frame)
+        self.draw_frame(frame)
     # --- END Input Functions
+
 
 class InputManager:
     inputs = [
-        [113, "Q", "Quit video player", VideoPlayer.quitVideo],
-        [97, "A", "Skip backward", VideoPlayer.skipBackward],
-        [100, "D", "Skip forward", VideoPlayer.skipForward],
-        [114, "R", "Scale Screen-size up", VideoPlayer.screenScaleUp],
-        [116, "T", "Scale Screen-size down", VideoPlayer.screenScaleDown],
-        [102, "F", "Enter and Exit Fullscreen", VideoPlayer.toggleFullscreen],
-        [104, "H", "Hide or show Debug Info", VideoPlayer.toggleDebugText],
-        [32, "SPACE", "Pause video", VideoPlayer.togglePauseVideo],
-        [65, "LSHIFT + A", "Skip one frame backward", VideoPlayer.skipOneFrameBackward],
-        [68, "LSHIFT + D", "Skip one frame forward", VideoPlayer.skipOneFrameForward]
+        [113, "Q", "Quit video player", VideoPlayer.quit_video],
+        [97, "A", "Skip backward", VideoPlayer.skip_backward],
+        [100, "D", "Skip forward", VideoPlayer.skip_forward],
+        [114, "R", "Scale Screen-size up", VideoPlayer.screen_scale_up],
+        [116, "T", "Scale Screen-size down", VideoPlayer.screen_scale_down],
+        [102, "F", "Enter and Exit Fullscreen", VideoPlayer.toggle_fullscreen],
+        [104, "H", "Hide or show Debug Info", VideoPlayer.toggle_debug],
+        [32, "SPACE", "Pause video", VideoPlayer.toggle_pause],
+        [65, "LSHIFT + A", "Skip one frame backward", VideoPlayer.skip_one_frame_backward],
+        [68, "LSHIFT + D", "Skip one frame forward", VideoPlayer.skip_one_frame_forward]
     ]
 
-    def checkInputs(self, inputKey):
-        if inputKey == -1:
+    def checkInputs(self, input_key):
+        if input_key == -1:
             return None
 
         for input in self.inputs:
-            if input[0] == inputKey:
+            if input[0] == input_key:
                 return input[3]
         return None
 
+
 class TextManager:
-    def __init__(self, videoPlayer):
-        self.videoPlayer = videoPlayer
+    def __init__(self, video_player):
+        self.video_player = video_player
         self.texts = []
 
         self.org = (25, 40)
@@ -208,18 +240,21 @@ class TextManager:
 
         self.textSpacing = VC.IntVector2(0, 60)
 
-        self.realFPS = videoPlayer.vid.get(cv2.CAP_PROP_FPS)
-        self.maxTime = self.convertTime(self.videoPlayer.amountOfFrames // self.realFPS)
+        self.realFPS = video_player.vid.get(cv2.CAP_PROP_FPS)
+        self.maxTime = self.convertTime(
+            self.video_player.amount_of_frames // self.realFPS
+        )
 
         self.updateTexts()
 
     def updateTexts(self):
-        vP = self.videoPlayer
-        curFrame = vP.currentFrame
-        res = vP.monitorSize if vP.isFullscreen else vP.displayedVidSize
+        curFrame = self.video_player.current_frame
+        res = self.video_player.displayed_vid_size
 
         self.texts = [  
-            "{}/{}".format(self.convertTime(curFrame // self.realFPS), self.maxTime),
+            "{}/{}".format(
+                self.convertTime(curFrame // self.realFPS), self.maxTime
+            ),
             "R: {}".format(res)
         ]
 
@@ -231,41 +266,52 @@ class TextManager:
             outText += text + "; "
         outText = outText.removesuffix("; ")
 
-        cv2.putText(frame, outText, self.org, self.font, self.scale, (0, 0, 0), self.thickness * 3, cv2.LINE_AA)
-        cv2.putText(frame, outText, self.org, self.font, self.scale, (255, 255, 255), self.thickness, cv2.LINE_AA)
+        cv2.putText(
+            frame, outText, self.org, self.font, self.scale, 
+            (0, 0, 0), self.thickness * 3, cv2.LINE_AA
+        )
+        cv2.putText(
+            frame, outText, self.org, self.font, self.scale,
+            (255, 255, 255), self.thickness, cv2.LINE_AA
+        )
 
     def convertTime(self, seconds):
         return time.strftime("%M:%S", time.gmtime(seconds))
 
+
 class CommandManager:
     def __init__(self):
-        self.enterCommandSymbol = "-c"
+        self.command_symbol = "-c"
         self.commands = [
-            ["help, -h", "Display available commands", CommandManager.helpCommand],
-            ["input, -i", "Display input keys", CommandManager.inputCommand]
+            ["help, -h", "Display available commands", CommandManager.help_command],
+            ["input, -i", "Display input keys", CommandManager.input_command]
         ]
 
-    def checkCommands(self, commandKey):
+    def check_commands(self, commandKey):
         validCommand = False
 
         for command in self.commands:
             if commandKey in command[0].split(", "):
                 if not callable(command[2]):
-                    raise ValueError("Command has no callable function", command)
+                    raise ValueError("Command not callable", command)
                 validCommand = True
                 command[2](self)
         
         if not validCommand:
-            raise ValueError("\'{}\' is not a viable command.\nUse \'{} help\' to view available comamnds.".format(commandKey, self.enterCommandSymbol))
+            raise ValueError(
+                "\'{}\' is not a viable command.\n"
+                + "Use \'{} help\' to view available comamnds."
+                .format(commandKey, self.command_symbol)
+            )
     
     # --- Commands
-    def helpCommand(self):
+    def help_command(self):
         print("---\nFollowing commands can be used for this script:\n")
 
         for command in self.commands:
             print("{} - {}".format(command[0], command[1]))
 
-    def inputCommand(self):
+    def input_command(self):
         print("---\nAvailable input keys (shortcuts for the video):\n")
 
         IM = InputManager()
@@ -273,17 +319,24 @@ class CommandManager:
             print("{} - {}".format(input[1], input[2]))
     # --- END Commands
 
+
 if __name__ == "__main__":
-    CM = CommandManager()
+    command_manager = CommandManager()
 
     if len(sys.argv) < 2:
-        raise ValueError("No video location or command was given.\nUse \'{}\' if you want to enter a command.".format(CM.enterCommandSymbol))
+        raise ValueError(
+            "No video location or command was given.\n"
+            + "Use \'{}\' if you want to enter a command."
+            .format(command_manager.command_symbol)
+        )
     
-    if sys.argv[1] == CM.enterCommandSymbol:
+    if sys.argv[1] == command_manager.command_symbol:
         if len(sys.argv) != 3:
-            raise ValueError("Need exactly 2 additional arguments for a command.")
-        CM.checkCommands(sys.argv[2])
+            raise ValueError("Need exactly 2 arguments for command.")
+        command_manager.check_commands(sys.argv[2])
     elif os.path.isfile(sys.argv[1]):
         vPlayer = VideoPlayer(sys.argv[1])
     else:
-        raise FileNotFoundError("The specifiec video does not exist or is not a file", sys.argv[1])
+        raise FileNotFoundError(
+            "Did not find specified video file", sys.argv[1]
+        )
