@@ -206,16 +206,26 @@ class VideoPlayer:
 
 class InputManager:
     inputs = [
-        [113, "Q", "Quit video player", VideoPlayer.quit_video],
-        [97, "A", "Skip backward", VideoPlayer.skip_backward],
-        [100, "D", "Skip forward", VideoPlayer.skip_forward],
-        [114, "R", "Scale Screen-size up", VideoPlayer.screen_scale_up],
-        [116, "T", "Scale Screen-size down", VideoPlayer.screen_scale_down],
-        [102, "F", "Enter and Exit Fullscreen", VideoPlayer.toggle_fullscreen],
-        [104, "H", "Hide or show Debug Info", VideoPlayer.toggle_debug],
-        [32, "SPACE", "Pause video", VideoPlayer.toggle_pause],
-        [65, "LSHIFT + A", "Skip one frame backward", VideoPlayer.skip_one_frame_backward],
-        [68, "LSHIFT + D", "Skip one frame forward", VideoPlayer.skip_one_frame_forward]
+        [113, "Q", "Quit video player", 
+            VideoPlayer.quit_video],
+        [97, "A", "Skip backward", 
+            VideoPlayer.skip_backward],
+        [100, "D", "Skip forward", 
+            VideoPlayer.skip_forward],
+        [114, "R", "Scale Screen-size up", 
+            VideoPlayer.screen_scale_up],
+        [116, "T", "Scale Screen-size down", 
+            VideoPlayer.screen_scale_down],
+        [102, "F", "Enter and Exit Fullscreen", 
+            VideoPlayer.toggle_fullscreen],
+        [104, "H", "Hide or show Debug Info", 
+            VideoPlayer.toggle_debug],
+        [32, "SPACE", "Pause video", 
+            VideoPlayer.toggle_pause],
+        [65, "LSHIFT + A", "Skip one frame backward", 
+            VideoPlayer.skip_one_frame_backward],
+        [68, "LSHIFT + D", "Skip one frame forward", 
+            VideoPlayer.skip_one_frame_forward]
     ]
 
     def checkInputs(self, input_key):
@@ -283,8 +293,10 @@ class CommandManager:
     def __init__(self):
         self.command_symbol = "-c"
         self.commands = [
-            ["help, -h", "Display available commands", CommandManager.help_command],
-            ["input, -i", "Display input keys", CommandManager.input_command]
+            ["help, -h", "Display available commands", 
+                CommandManager.help_command],
+            ["input, -i", "Display input keys", 
+                CommandManager.input_command]
         ]
 
     def check_commands(self, commandKey):
