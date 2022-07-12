@@ -55,6 +55,7 @@ class VideoPlayer:
         self.is_paused = False
         self.is_fullscreen = False
         self.show_debug_text = False
+        self.flip_horizontally = False
 
         # Class instances.
         self.input_manager = InputManager()
@@ -132,6 +133,9 @@ class VideoPlayer:
         """Take in the frame to draw and display it in the window"""
         outFrame = cv2.resize(
             frame, (self.displayed_vid_size.x, self.displayed_vid_size.y))
+
+        if self.flip_horizontally:
+            outFrame = cv2.flip(outFrame, 1)
 
         # Only calculate texts if debug should be displayed.
         if self.show_debug_text:
@@ -254,6 +258,12 @@ class VideoPlayer:
         _, frame = self.get_frame(self.current_frame)
         self.draw_frame(frame)
 
+    def toggle_flip_image_horizontally(self):
+        self.flip_horizontally = not self.flip_horizontally
+
+        _, frame = self.get_frame(self.current_frame)
+        self.draw_frame(frame)
+
 
 class InputManager:
     """Store input relations and references to VideoPlayer functions.
@@ -286,7 +296,9 @@ class InputManager:
         [65, "LSHIFT + A", "Skip one frame backward", 
             VideoPlayer.skip_one_frame_backward],
         [68, "LSHIFT + D", "Skip one frame forward", 
-            VideoPlayer.skip_one_frame_forward]
+            VideoPlayer.skip_one_frame_forward],
+        [109, "M", "Flip image horizontally",
+            VideoPlayer.toggle_flip_image_horizontally]
     ]
 
     def checkInputs(self, input_key):
@@ -295,6 +307,8 @@ class InputManager:
         # In case no key was pressed, return None
         if input_key == -1:
             return None
+
+        print(input_key)
 
         for input in self.inputs:
             if input[0] == input_key:
@@ -329,11 +343,13 @@ class TextManager:
         """Update texts by reading properties from video_player."""
         curFrame = self.video_player.current_frame
         res = self.video_player.displayed_vid_size
+        flip = "H" if self.video_player.flip_horizontally else "-"
 
         self.texts = [
             "{}/{}".format(
                 self.convertTime(curFrame // self.realFPS), self.maxTime),
-            "R: {}".format(res)
+            "R: {}".format(res),
+            "F: {}".format(flip)
         ]
 
     def putTexts(self, frame):
